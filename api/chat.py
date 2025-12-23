@@ -116,3 +116,29 @@ def handle_chat():
              return jsonify({"error": "API của Google đang bị quá tải, vui lòng thử lại sau."}), 429
         
         return jsonify({"error": "Lỗi máy chủ nội bộ, không thể xử lý yêu cầu."}), 500
+
+@app.route('/api/embedding', methods=['POST', 'OPTIONS'])
+def handle_embedding():
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    if not GEMINI_API_KEYS:
+        return jsonify({"error": "API Key chưa được cấu hình trên server."}), 500
+
+    try:
+        data = request.get_json()
+        text = data.get('text')
+
+        if not text:
+            return jsonify({"error": "Không có nội dung để tạo vector."}), 400
+
+        # Dùng key đầu tiên hoặc xoay vòng để tạo embedding
+        # (Lưu ý: Embedding tốn rất ít quota so với chat)
+        genai.configure(api_key=GEMINI_API_KEYS[0])
+        result = genai.embed_content(model="models/text-embedding-004", content=text, task_type="retrieval_query")
+        
+        return jsonify({"embedding": result['embedding']})
+
+    except Exception as e:
+        print(f"Lỗi embedding: {e}")
+        return jsonify({"error": "Lỗi khi tạo vector."}), 500
