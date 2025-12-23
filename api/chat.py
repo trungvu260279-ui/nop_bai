@@ -52,7 +52,7 @@ except Exception as e:
 
 def search_faiss(query, k=5, score_threshold=0.6):
     """Tìm kiếm trong DB vector cục bộ với FAISS."""
-    if not faiss_index or not faiss_documents or not GOOGLE_KEYS:
+    if not faiss_index or not faiss_documents or not GEMINI_API_KEYS:
         return None
     try:
         genai.configure(api_key=GEMINI_API_KEYS[0])
