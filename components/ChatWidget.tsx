@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, Search, Cpu, Loader2, Copy, Check, Maximize2, Minimize2 } from 'lucide-react';
 import { Translation, ChatMessage } from '../types';
 import { CHAT_LESSONS } from '../constants'; 
-import vectorDb from '../luat_vector_db.json'; // Import kho vector vừa tạo
 
 interface ChatWidgetProps {
   t: Translation['chat'] & { thinking_steps?: { searching: string; analyzing: string; generating: string } };
@@ -30,51 +29,6 @@ const Typewriter = ({ text, onComplete }: { text: string, onComplete?: () => voi
   }, [text]);
 
   return <>{displayedText}</>;
-};
-
-// --- HELPER: TÍNH TOÁN VECTOR (Cosine Similarity) ---
-function cosineSimilarity(vecA: number[], vecB: number[]): number {
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-// Hàm tìm kiếm ngữ nghĩa trên kho vector
-const searchVectorDB = async (query: string): Promise<{ context: string; topScore: number }> => {
-  try {
-    // Gọi API backend để lấy embedding (An toàn hơn, không lộ key)
-    const response = await fetch('/api/embedding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: query })
-    });
-
-    if (!response.ok) return { context: "", topScore: 0 };
-
-    const data = await response.json();
-    const queryVector = data.embedding;
-
-    // 2. So sánh với kho dữ liệu
-    const scoredDocs = vectorDb.map((doc: any) => ({
-      ...doc,
-      score: cosineSimilarity(queryVector, doc.embedding)
-    }));
-
-    // 3. Lấy Top 3 đoạn giống nhất
-    const topDocs = scoredDocs.sort((a: any, b: any) => b.score - a.score).slice(0, 3);
-    
-    return { context: topDocs.map((d: any) => d.content).join('\n\n---\n\n'), topScore: topDocs[0]?.score || 0 };
-  } catch (e) {
-    console.error("Vector search error:", e);
-    return { context: "", topScore: 0 };
-  }
 };
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
@@ -123,111 +77,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     }
   };
 
-  // --- HÀM SEARCH INTERNET (SỬ DỤNG GEMINI AI) ---
-  const searchInternet = async (query: string) => {
-    // Check cache first
-    const cachedResponse = queryCache.current[query.toLowerCase()];
-    if (cachedResponse) {
-      setThinkingStep(t.thinking_steps?.generating || "Đang tạo câu trả lời...");
-      await new Promise(resolve => setTimeout(resolve, 500)); // Giả lập thời gian lấy từ cache
-      setThinkingStep('');
-      return cachedResponse;
-    }
-
-    // Bước 1: Phân tích
-    setThinkingStep(t.thinking_steps?.analyzing || "Đang phân tích...");
-    
-    try {
-      // Bước 2: Gọi API Serverless (Thay vì gọi trực tiếp Gemini)
-      setThinkingStep(t.thinking_steps?.generating || "Đang tạo câu trả lời...");
-      
-      // Lấy 5 tin nhắn gần nhất để làm ngữ cảnh
-      const last5Messages = messages.slice(-5);
-      const conversationHistory = last5Messages.map(msg => `${msg.role === 'user' ? 'User' : 'Model'}: ${msg.text}`).join('\n');
-
-      const { context: lawContext, topScore } = await searchVectorDB(query);
-      let prompt = '';
-
-      // Nếu tìm thấy thông tin liên quan (độ tương đồng > 0.5), dùng prompt chuyên gia luật
-      if (topScore > 0.5) {
-        prompt = `Dựa vào đoạn hội thoại trước đó và kiến thức của bạn, hãy trả lời câu hỏi của người dùng.
----
-HỘI THOẠI TRƯỚC:
-${conversationHistory}
----
-Bạn là chuyên gia tư vấn luật giao thông Việt Nam.
-Dưới đây là một số điều luật có thể liên quan:
----
-${lawContext}
----
-
-HƯỚNG DẪN:
-1. Trả lời NGẮN GỌN, SÚC TÍCH, ĐẦY ĐỦ ý chính.
-2. Dùng ICON (✅, ⛔, ⚠️, 💡...) đầu dòng cho sinh động.
-3. Trích nguồn ngắn gọn (VD: NĐ 168/2024).
-4. Nếu không chắc chắn, hãy nói "Tôi không tìm thấy thông tin chính xác về vấn đề này".
-5. KHÔNG sử dụng dấu ** để in đậm.
-
-Câu hỏi mới: "${query}"`;
-      } else {
-        // Nếu không, dùng prompt "ChatGPT" cho thông tin chung
-        prompt = `Dựa vào đoạn hội thoại trước đó và kiến thức của bạn, hãy trả lời câu hỏi của người dùng.
----
-HỘI THOẠI TRƯỚC:
-${conversationHistory}
----
-Bạn là một trợ lý AI thân thiện và am hiểu. Hãy trả lời câu hỏi của người dùng về đời sống hoặc pháp luật chung tại Việt Nam một cách gần gũi, dễ hiểu và đi thẳng vào vấn đề. Sử dụng giọng văn tự nhiên như đang trò chuyện với một người bạn. KHÔNG sử dụng dấu ** để in đậm.
-
-Câu hỏi mới: "${query}"`;
-      }
-      
-      // Gọi về Serverless Function
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Lỗi kết nối server');
-      
-      // Lưu vào cache
-      queryCache.current[query.toLowerCase()] = data.text;
-
-      setThinkingStep('');
-      return data.text;
-    } catch (error: any) {
-      console.error("Lỗi khi gọi API:", error);
-      setThinkingStep('');
-      
-      // Xử lý lỗi Rate Limit từ server
-      if (error.message && error.message.includes('Too many requests')) {
-        return "⛔ Bạn đang gửi tin nhắn quá nhanh. Vui lòng đợi một chút trước khi thử lại.";
-      }
-
-      return "Xin lỗi, hệ thống đang bận hoặc gặp sự cố kết nối. Vui lòng thử lại sau.";
-    }
-  };
-
-  // Hàm xử lý logic chính
-  const processResponse = async (userInput: string) => {
-    // TRƯỜNG HỢP 1: Người dùng chọn trực tiếp từ Menu (khớp tiêu đề bài học)
-    const selectedLesson = CHAT_LESSONS.find(l => l.title === userInput);
-    if (selectedLesson) {
-      return {
-        text: selectedLesson.content,
-        options: lessonOptions // Hiển thị lại menu chính sau khi xem bài học
-      };
-    }
-
-    // TRƯỜNG HỢP 2: Các trường hợp khác -> Dùng AI Search với ngữ cảnh
-    const searchResult = await searchInternet(userInput);
-    return {
-      text: searchResult,
-      options: lessonOptions // Vẫn hiển thị lại các lựa chọn bài học sau mỗi câu trả lời của AI
-    };
-  };
-
   const handleCopy = (text: string, id: string) => {
     if (copiedMessageId === id) return;
     navigator.clipboard.writeText(text).then(() => {
@@ -240,35 +89,69 @@ Câu hỏi mới: "${query}"`;
 
   const handleSend = async (textOverride?: string) => {
     const textToSend = textOverride || input;
-    if (!textToSend.trim()) return;
+    if (!textToSend.trim() || isLoading) return;
 
-    // 1. Thêm tin nhắn của User
+    // 1. Thêm tin nhắn của người dùng
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       text: textToSend,
       timestamp: new Date()
     };
-    playSound(); // Âm thanh khi gửi
+    playSound();
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
+    setThinkingStep(t.thinking_steps?.generating || "Đang tạo câu trả lời...");
 
-    // 2. Xử lý phản hồi của Bot
-    // setTimeout removed, using async/await for search simulation
-    const response = await processResponse(textToSend);
-    
-    const botMsg: ChatMessage = {
+    // 2. Chuẩn bị tin nhắn rỗng cho bot để stream nội dung vào
+    const botMsgId = (Date.now() + 1).toString();
+    const newBotMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
       role: 'model',
-      text: response.text.replace(/\*\*/g, ''),
+      text: '', // Bắt đầu với text rỗng
       timestamp: new Date(),
-      options: response.options
+      options: []
     };
-    
     setMessages(prev => [...prev, botMsg]);
-    playSound(); // Âm thanh khi nhận
-    setIsLoading(false);
+
+    try {
+      // 3. Gọi API backend duy nhất
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: textToSend,
+          history: messages.slice(-5) // Gửi lịch sử chat gần nhất
+        })
+      });
+
+      setThinkingStep(''); // Ẩn thanh trạng thái khi stream bắt đầu
+
+      if (!response.ok || !response.body) {
+        throw new Error(response.statusText || 'Lỗi kết nối server');
+      }
+
+      // 4. Xử lý stream response
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        fullText += chunk;
+        setMessages(prev => prev.map(msg => msg.id === botMsgId ? { ...msg, text: fullText } : msg));
+      }
+    } catch (error: any) {
+      console.error("Lỗi khi gọi API:", error);
+      const errorText = "Xin lỗi, hệ thống đang bận hoặc gặp sự cố kết nối. Vui lòng thử lại sau.";
+      setMessages(prev => prev.map(msg => msg.id === botMsgId ? { ...msg, text: errorText } : msg));
+    } finally {
+      setIsLoading(false);
+      playSound();
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -329,12 +212,7 @@ Câu hỏi mới: "${query}"`;
                 <div className="flex flex-col gap-1 w-full max-w-[85%]">
                   <div className="relative group">
                     <div className="bg-white text-slate-800 border border-slate-200 p-3 rounded-2xl rounded-bl-none text-sm leading-relaxed whitespace-pre-line shadow-sm">
-                      {/* Hiệu ứng gõ chữ cho tin nhắn mới nhất của Bot */}
-                      {msg.id === messages[messages.length - 1].id && !isLoading ? (
-                        <Typewriter text={msg.text} />
-                      ) : (
-                        msg.text
-                      )}
+                      {msg.text || "..."}
                     </div>
                     {/* NÚT COPY (chỉ cho bot và không phải tin nhắn chào mừng) */}
                     {msg.id !== 'init' && (
