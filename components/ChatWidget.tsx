@@ -3,7 +3,6 @@ import { MessageCircle, X, Send, Bot, Search, Cpu, Loader2, Copy, Check, Maximiz
 import { Translation, ChatMessage } from '../types';
 import { CHAT_LESSONS } from '../constants'; 
 import vectorDb from '../luat_vector_db.json'; // Import kho vector vừa tạo
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface ChatWidgetProps {
   t: Translation['chat'] & { thinking_steps?: { searching: string; analyzing: string; generating: string } };
@@ -50,20 +49,17 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 // Hàm tìm kiếm ngữ nghĩa trên kho vector
 const searchVectorDB = async (query: string): Promise<{ context: string; topScore: number }> => {
   try {
-    // --- ĐỌC API KEY TỪ BIẾN MÔI TRƯỜNG ---
-    // Vite chỉ expose các biến có tiền tố VITE_ ra phía client
-    const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!API_KEY) {
-      console.error("Lỗi: Vui lòng tạo file .env và thêm VITE_GEMINI_API_KEY vào đó.");
-      return { context: "Lỗi cấu hình: API Key chưa được thiết lập phía client.", topScore: 0 };
-    }
+    // Gọi API backend để lấy embedding (An toàn hơn, không lộ key)
+    const response = await fetch('/api/embedding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: query })
+    });
 
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({ model: "models/text-embedding-004" });
+    if (!response.ok) return { context: "", topScore: 0 };
 
-    // 1. Tạo vector cho câu hỏi
-    const result = await model.embedContent(query);
-    const queryVector = result.embedding.values;
+    const data = await response.json();
+    const queryVector = data.embedding;
 
     // 2. So sánh với kho dữ liệu
     const scoredDocs = vectorDb.map((doc: any) => ({
