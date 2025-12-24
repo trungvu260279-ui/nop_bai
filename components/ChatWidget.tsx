@@ -28,8 +28,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
   const [isEnlarged, setIsEnlarged] = useState(false);
   
   // --- TRẠNG THÁI SERVER ---
-  // false = Chưa biết server thức hay ngủ (mặc định coi là ngủ lúc mới vào)
-  // true = Server đã trả lời ít nhất 1 lần (đã thức)
   const [isServerAwake, setIsServerAwake] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -48,14 +46,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     wakeUpServer();
   }, []);
 
-  // --- 2. HIỆU ỨNG CHỮ CHẠY CHẠY ---
+  // --- 2. HIỆU ỨNG CHỮ CHẠY CHẠY (ĐÃ TĂNG TỐC) ---
   useEffect(() => {
     if (!isLoading) return;
     let stepIndex = 0;
+    // 👇 Sửa ở đây: Giảm từ 2000 xuống 800 để chữ chạy nhanh hơn
     const interval = setInterval(() => {
       stepIndex = (stepIndex + 1) % THINKING_STEPS.length;
       setThinkingText(THINKING_STEPS[stepIndex]);
-    }, 2000);
+    }, 800); // 0.8 giây đổi 1 lần
+
     return () => clearInterval(interval);
   }, [isLoading]);
 
@@ -83,7 +83,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     });
   };
 
-  // --- 5. HÀM GỬI TIN NHẮN (LOGIC MỚI) ---
+  // --- 5. HÀM GỬI TIN NHẮN ---
   const handleSend = async (textOverride?: string) => {
     const textToSend = textOverride || input;
     if (!textToSend?.trim()) return;
@@ -114,25 +114,23 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     setIsLoading(true);
     setThinkingText(THINKING_STEPS[0]); 
 
-    // --- C. HẸN GIỜ CẢNH BÁO (CHỈ ÁP DỤNG KHI SERVER CHƯA THỨC) ---
+    // --- C. HẸN GIỜ CẢNH BÁO (CHỈ KHI SERVER NGỦ) ---
     let slowServerTimer: NodeJS.Timeout | undefined;
 
     if (!isServerAwake) {
-      // Nếu là lần đầu (Server chưa thức): Hẹn giờ 6s để báo ngủ đông
+      // Nếu chưa thức -> Đợi 6s mới báo ngủ
       slowServerTimer = setTimeout(() => {
         setMessages(prev => prev.map(msg => 
           msg.id === botMsgId 
             ? { 
                 ...msg, 
-                text: "SLEEPING_MODE", // Kích hoạt UI ngủ đông
+                text: "SLEEPING_MODE", 
                 isThinking: true 
               } 
             : msg
         ));
-      }, 6000); // 6 giây
+      }, 6000); 
     } 
-    // Nếu isServerAwake = true (đã chat rồi) -> Thì KHÔNG đặt timer này nữa
-    // Chatbot sẽ chỉ hiện hiệu ứng "Đang suy nghĩ..." mãi mãi cho đến khi xong.
 
     try {
       console.log("🚀 Client gửi:", textToSend);
@@ -143,7 +141,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
         body: JSON.stringify({ prompt: textToSend })
       });
 
-      // Nếu có phản hồi -> Hủy timer ngay lập tức
       if (slowServerTimer) clearTimeout(slowServerTimer);
 
       if (!response.ok) {
@@ -153,8 +150,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
       const data = await response.json();
       console.log("📦 Server trả về:", data);
 
-      // --- QUAN TRỌNG: ĐÁNH DẤU SERVER ĐÃ THỨC ---
-      // Từ giờ trở đi sẽ không hiện thông báo ngủ đông nữa
+      // Đánh dấu Server đã thức
       setIsServerAwake(true); 
 
       const botResponse = data.answer || data.text || "Hệ thống không có phản hồi.";
@@ -236,13 +232,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
                 
                 {msg.isThinking ? (
                   msg.text === "SLEEPING_MODE" ? (
-                    // 1. Chỉ hiện khi Server CHƯA THỨC và đợi > 6s
                     <div className="flex items-start gap-2 text-slate-500 italic">
                       <Loader2 size={16} className="animate-spin mt-1 text-orange-500 flex-shrink-0" />
                       <span>😴 Server đang 'ngủ đông'. Đang đánh thức (khoảng 30-50s), bạn đợi chút nha! 🐢</span>
                     </div>
                   ) : (
-                    // 2. Bình thường (hoặc đã thức) thì hiện cái này
                     <div className="flex items-center gap-2 text-blue-600 font-medium animate-pulse">
                       <Loader2 size={14} className="animate-spin" />
                       <span>{thinkingText}</span>
