@@ -129,7 +129,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
               } 
             : msg
         ));
-      }, 6000); 
+      }, 60000); 
     } 
 
     try {
