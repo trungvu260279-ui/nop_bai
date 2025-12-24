@@ -96,7 +96,7 @@ const GuideAssistant = () => {
     if (element) element.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const avatarUrl = "https://api.dicebear.com/7.x/bottts/svg?seed=Felix&mouth=grimace&eyes=frame1"; 
+  const avatarUrl = "public/ai_vui_nhon.png"; 
 
   if (!isVisible) return (
     <button 
