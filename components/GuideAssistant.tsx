@@ -30,10 +30,10 @@ const LOCAL_BANTER_LIST = [
 // Bạn hãy tìm link ảnh GIF trên Pinterest/Google và dán vào đây nhé!
 const ANIMATED_AVATARS = {
   // Ảnh khi vui vẻ/bình thường (Ví dụ: Cặp đôi đang cười hoặc nhảy múa)
-  happy: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDdtY256eG56eG56eG56eG56eG56eG56eG56eG56eG56/l4FGpP4lx81th84lG/giphy.gif", 
+  happy: "https://media.giphy.com/media/l3vRkS8PpgupemrZe/giphy.gif", 
   
   // Ảnh khi nghiêm túc/cảnh báo (Ví dụ: Cặp đôi đang hoảng hốt hoặc giơ biển Stop)
-  serious: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Z6eG56eG56eG56eG56eG56eG56eG56eG56eG56eG56/3o7TKr3nzbh5QNWB8c/giphy.gif"
+  serious: "https://media.giphy.com/media/3o7TKr3nzbh5QNWB8c/giphy.gif"
 };
 
 const GuideAssistant = () => {
