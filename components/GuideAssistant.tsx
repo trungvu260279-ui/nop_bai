@@ -30,10 +30,10 @@ const LOCAL_BANTER_LIST = [
 // Bạn hãy tìm link ảnh GIF trên Pinterest/Google và dán vào đây nhé!
 const ANIMATED_AVATARS = {
   // Ảnh khi vui vẻ/bình thường (Ví dụ: Cặp đôi đang cười hoặc nhảy múa)
-  happy: "https://tenor.com/lKfECYAYEqx.gif", 
+  happy: "https://tenor.com/pJ147alEAhj.gif", 
   
   // Ảnh khi nghiêm túc/cảnh báo (Ví dụ: Cặp đôi đang hoảng hốt hoặc giơ biển Stop)
-  serious: "https://media.giphy.com/media/3o7TKr3nzbh5QNWB8c/giphy.gif"
+  serious: "https://tenor.com/uSXT4CQ6yRS.gif"
 };
 
 const GuideAssistant = () => {
