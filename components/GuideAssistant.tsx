@@ -32,7 +32,7 @@ const LOCAL_BANTER_LIST = [
 const ANIMATED_AVATARS = {
   // Thêm /xe_dap vào trước tên file
   happy: "public/capoo_1.gif",       
-  serious: "public/xe_dap/bugcat-capoo.gif" 
+  serious: "/xe_dap/bugcat-capoo.gif" 
 };
 
 const GuideAssistant = () => {
