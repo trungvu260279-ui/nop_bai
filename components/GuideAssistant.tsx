@@ -28,12 +28,11 @@ const LOCAL_BANTER_LIST = [
 
 // --- CẤU HÌNH ẢNH ĐỘNG (GIF) ---
 // Bạn hãy tìm link ảnh GIF trên Pinterest/Google và dán vào đây nhé!
+// --- CẤU HÌNH ẢNH ĐỘNG LOCAL (CAPOO) ---
 const ANIMATED_AVATARS = {
-  // Ảnh khi vui vẻ - Capoo vui vẻ ôm
-  happy: "/capoo_1.gif", 
-  
-  // Ảnh khi nghiêm túc - Capoo lo lắng/sợ
-  serious: "/bugcat-capoo.gif"
+  // Thêm /xe_dap vào trước tên file
+  happy: "/xe_dap/capoo_1.gif",       
+  serious: "/xe_dap/bugcat-capoo.gif" 
 };
 
 const GuideAssistant = () => {
