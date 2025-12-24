@@ -29,11 +29,11 @@ const LOCAL_BANTER_LIST = [
 // --- CẤU HÌNH ẢNH ĐỘNG (GIF) ---
 // Bạn hãy tìm link ảnh GIF trên Pinterest/Google và dán vào đây nhé!
 const ANIMATED_AVATARS = {
-  // Ảnh khi vui vẻ/bình thường - Emoji vui
-  happy: "https://media.giphy.com/media/XD9o33QG9BoMis7iM4/giphy.gif", 
+  // Ảnh khi vui vẻ - Capoo vui vẻ ôm
+  happy: "https://media1.tenor.com/m/rJ5d0ához6wAAAAC/capoo-bugcat.gif", 
   
-  // Ảnh khi nghiêm túc/cảnh báo - Emoji nghiêm túc
-  serious: "https://media.giphy.com/media/26xBwdIuRJiAIqHwA/giphy.gif"
+  // Ảnh khi nghiêm túc - Capoo lo lắng/sợ
+  serious: "https://media1.tenor.com/m/8cKFp-OXjcsAAAAC/bugcat-capoo-scared.gif"
 };
 
 const GuideAssistant = () => {
