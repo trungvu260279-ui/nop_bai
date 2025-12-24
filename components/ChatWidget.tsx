@@ -27,6 +27,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isEnlarged, setIsEnlarged] = useState(false);
   
+  // --- TRẠNG THÁI SERVER ---
+  // false = Chưa biết server thức hay ngủ (mặc định coi là ngủ lúc mới vào)
+  // true = Server đã trả lời ít nhất 1 lần (đã thức)
+  const [isServerAwake, setIsServerAwake] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lessonOptions = CHAT_LESSONS.map(l => l.title);
 
@@ -46,14 +51,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
   // --- 2. HIỆU ỨNG CHỮ CHẠY CHẠY ---
   useEffect(() => {
     if (!isLoading) return;
-
     let stepIndex = 0;
-    // Cứ 2 giây đổi câu một lần
     const interval = setInterval(() => {
       stepIndex = (stepIndex + 1) % THINKING_STEPS.length;
       setThinkingText(THINKING_STEPS[stepIndex]);
     }, 2000);
-
     return () => clearInterval(interval);
   }, [isLoading]);
 
@@ -81,7 +83,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     });
   };
 
-  // --- 5. HÀM GỬI TIN NHẮN (CORE LOGIC) ---
+  // --- 5. HÀM GỬI TIN NHẮN (LOGIC MỚI) ---
   const handleSend = async (textOverride?: string) => {
     const textToSend = textOverride || input;
     if (!textToSend?.trim()) return;
@@ -112,19 +114,25 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     setIsLoading(true);
     setThinkingText(THINKING_STEPS[0]); 
 
-    // --- C. HẸN GIỜ CẢNH BÁO SERVER NGỦ (ĐÃ SỬA LÊN 12 GIÂY) ---
-    // Chỉ khi nào đợi quá 12s mới hiện thông báo ngủ đông
-    const slowServerTimer = setTimeout(() => {
-      setMessages(prev => prev.map(msg => 
-        msg.id === botMsgId 
-          ? { 
-              ...msg, 
-              text: "SLEEPING_MODE", // Kích hoạt chế độ ngủ
-              isThinking: true 
-            } 
-          : msg
-      ));
-    }, 12000); // <--- ĐÃ TĂNG LÊN 12000ms (12 giây)
+    // --- C. HẸN GIỜ CẢNH BÁO (CHỈ ÁP DỤNG KHI SERVER CHƯA THỨC) ---
+    let slowServerTimer: NodeJS.Timeout | undefined;
+
+    if (!isServerAwake) {
+      // Nếu là lần đầu (Server chưa thức): Hẹn giờ 6s để báo ngủ đông
+      slowServerTimer = setTimeout(() => {
+        setMessages(prev => prev.map(msg => 
+          msg.id === botMsgId 
+            ? { 
+                ...msg, 
+                text: "SLEEPING_MODE", // Kích hoạt UI ngủ đông
+                isThinking: true 
+              } 
+            : msg
+        ));
+      }, 6000); // 6 giây
+    } 
+    // Nếu isServerAwake = true (đã chat rồi) -> Thì KHÔNG đặt timer này nữa
+    // Chatbot sẽ chỉ hiện hiệu ứng "Đang suy nghĩ..." mãi mãi cho đến khi xong.
 
     try {
       console.log("🚀 Client gửi:", textToSend);
@@ -135,8 +143,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
         body: JSON.stringify({ prompt: textToSend })
       });
 
-      // Nếu Server trả lời (dù nhanh hay chậm) thì HỦY cái hẹn giờ đi ngay
-      clearTimeout(slowServerTimer);
+      // Nếu có phản hồi -> Hủy timer ngay lập tức
+      if (slowServerTimer) clearTimeout(slowServerTimer);
 
       if (!response.ok) {
         throw new Error(`HTTP Error: ${response.status}`);
@@ -144,6 +152,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
 
       const data = await response.json();
       console.log("📦 Server trả về:", data);
+
+      // --- QUAN TRỌNG: ĐÁNH DẤU SERVER ĐÃ THỨC ---
+      // Từ giờ trở đi sẽ không hiện thông báo ngủ đông nữa
+      setIsServerAwake(true); 
 
       const botResponse = data.answer || data.text || "Hệ thống không có phản hồi.";
 
@@ -155,11 +167,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
       ));
 
     } catch (error) {
-      clearTimeout(slowServerTimer);
+      if (slowServerTimer) clearTimeout(slowServerTimer);
       console.error("❌ Lỗi Client:", error);
       setMessages(prev => prev.map(msg => 
         msg.id === botMsgId 
-          ? { ...msg, text: "⚠️ Lỗi kết nối! Server có thể đang khởi động hoặc mạng yếu. Vui lòng thử lại sau 30 giây.", isThinking: false } 
+          ? { ...msg, text: "⚠️ Lỗi kết nối! Vui lòng thử lại sau giây lát.", isThinking: false } 
           : msg
       ));
     } finally {
@@ -224,13 +236,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
                 
                 {msg.isThinking ? (
                   msg.text === "SLEEPING_MODE" ? (
-                    // 1. Chỉ hiện khi đợi quá 12s
+                    // 1. Chỉ hiện khi Server CHƯA THỨC và đợi > 6s
                     <div className="flex items-start gap-2 text-slate-500 italic">
                       <Loader2 size={16} className="animate-spin mt-1 text-orange-500 flex-shrink-0" />
                       <span>😴 Server đang 'ngủ đông'. Đang đánh thức (khoảng 30-50s), bạn đợi chút nha! 🐢</span>
                     </div>
                   ) : (
-                    // 2. Bình thường hiện cái này
+                    // 2. Bình thường (hoặc đã thức) thì hiện cái này
                     <div className="flex items-center gap-2 text-blue-600 font-medium animate-pulse">
                       <Loader2 size={14} className="animate-spin" />
                       <span>{thinkingText}</span>
