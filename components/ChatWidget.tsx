@@ -9,13 +9,13 @@ interface ChatWidgetProps {
   t: Translation['chat'] & { thinking_steps?: { searching: string; analyzing: string; generating: string } };
 }
 
-// --- DANH SÁCH CÁC CÂU "GIẢ VỜ" SUY NGHĨ CHO NGẦU ---
+// --- DANH SÁCH CÁC CÂU "GIẢ VỜ" SUY NGHĨ ---
 const THINKING_STEPS = [
-  "🔍 Đang tra cứu cơ sở dữ liệu luật...",
-  "📡 Đang kết nối đến hệ thống giao thông...",
-  "⚖️ Đang phân tích hành vi vi phạm...",
-  "🧠 Đang tổng hợp mức phạt mới nhất...",
-  "✍️ Đang soạn thảo câu trả lời..."
+  "🔍 Đang quét dữ liệu luật...",
+  "📡 Đang kết nối hệ thống giao thông...",
+  "⚖️ Đang phân tích hành vi...",
+  "🧠 Đang tổng hợp mức phạt...",
+  "✍️ Đang soạn câu trả lời chi tiết..."
 ];
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
@@ -23,7 +23,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [thinkingText, setThinkingText] = useState(THINKING_STEPS[0]); // State cho chữ chạy chạy
+  const [thinkingText, setThinkingText] = useState(THINKING_STEPS[0]); 
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isEnlarged, setIsEnlarged] = useState(false);
   
@@ -43,16 +43,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     wakeUpServer();
   }, []);
 
-  // --- 2. HIỆU ỨNG CHỮ CHẠY CHẠY KHI LOADING ---
+  // --- 2. HIỆU ỨNG CHỮ CHẠY CHẠY ---
   useEffect(() => {
     if (!isLoading) return;
 
     let stepIndex = 0;
-    // Cứ 1.5 giây đổi câu một lần cho nó nguy hiểm
+    // Cứ 2 giây đổi câu một lần
     const interval = setInterval(() => {
       stepIndex = (stepIndex + 1) % THINKING_STEPS.length;
       setThinkingText(THINKING_STEPS[stepIndex]);
-    }, 1500);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [isLoading]);
@@ -72,7 +72,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
   // --- 4. AUTO SCROLL ---
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading, thinkingText]); // Scroll khi chữ thay đổi
+  }, [messages, isLoading, thinkingText]);
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -98,11 +98,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
       timestamp: new Date()
     }]);
 
-    // B. Hiển thị tin nhắn chờ (Loading...)
+    // B. Hiển thị tin nhắn chờ
     const botMsgId = (Date.now() + 1).toString();
     setMessages(prev => [...prev, { 
       id: botMsgId, 
-      text: 'Thinking...', // Text tạm, sẽ được thay thế bằng UI hiển thị bên dưới
+      text: 'Thinking...', 
       sender: 'bot', 
       role: 'model', 
       isThinking: true,
@@ -110,22 +110,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     }]);
     
     setIsLoading(true);
-    setThinkingText(THINKING_STEPS[0]); // Reset về câu đầu tiên
+    setThinkingText(THINKING_STEPS[0]); 
 
-    // --- C. HẸN GIỜ CẢNH BÁO SERVER NGỦ ---
-    // Nếu sau 4s chưa thấy phản hồi -> Đổi text thành thông báo chờ
+    // --- C. HẸN GIỜ CẢNH BÁO SERVER NGỦ (ĐÃ SỬA LÊN 12 GIÂY) ---
+    // Chỉ khi nào đợi quá 12s mới hiện thông báo ngủ đông
     const slowServerTimer = setTimeout(() => {
       setMessages(prev => prev.map(msg => 
         msg.id === botMsgId 
           ? { 
               ...msg, 
-              // Dấu hiệu đặc biệt để nhận biết là đang đợi server ngủ
-              text: "SLEEPING_MODE", 
+              text: "SLEEPING_MODE", // Kích hoạt chế độ ngủ
               isThinking: true 
             } 
           : msg
       ));
-    }, 4000);
+    }, 12000); // <--- ĐÃ TĂNG LÊN 12000ms (12 giây)
 
     try {
       console.log("🚀 Client gửi:", textToSend);
@@ -136,7 +135,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
         body: JSON.stringify({ prompt: textToSend })
       });
 
-      // Nếu đã có phản hồi thì HỦY cái hẹn giờ đi
+      // Nếu Server trả lời (dù nhanh hay chậm) thì HỦY cái hẹn giờ đi ngay
       clearTimeout(slowServerTimer);
 
       if (!response.ok) {
@@ -148,7 +147,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
 
       const botResponse = data.answer || data.text || "Hệ thống không có phản hồi.";
 
-      // Cập nhật lại tin nhắn Bot (Thay thế thông báo chờ bằng câu trả lời thật)
+      // Cập nhật lại tin nhắn Bot
       setMessages(prev => prev.map(msg => 
         msg.id === botMsgId 
           ? { ...msg, text: botResponse, isThinking: false } 
@@ -156,7 +155,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
       ));
 
     } catch (error) {
-      clearTimeout(slowServerTimer); // Hủy timer nếu lỗi
+      clearTimeout(slowServerTimer);
       console.error("❌ Lỗi Client:", error);
       setMessages(prev => prev.map(msg => 
         msg.id === botMsgId 
@@ -174,7 +173,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
 
   return (
     <div className="fixed bottom-4 right-4 z-50 font-sans">
-      {/* Nút mở Chat */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`${isOpen ? 'scale-0' : 'scale-100'} absolute bottom-0 right-0 transition-all bg-blue-700 text-white p-3.5 rounded-full shadow-lg hover:bg-blue-800 hover:scale-110 duration-300`}
@@ -182,7 +180,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
         <MessageCircle size={24} />
       </button>
 
-      {/* Cửa sổ Chat */}
       <div className={`${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0 pointer-events-none'} transition-all duration-300 origin-bottom-right absolute bottom-0 right-0 ${isEnlarged ? 'w-[90vw] h-[80vh] md:w-[600px] md:h-[700px]' : 'w-[90vw] h-[600px] md:w-[380px] md:h-[550px]'} bg-white rounded-2xl shadow-2xl flex flex-col border border-slate-200 overflow-hidden`}>
         
         {/* Header */}
@@ -208,12 +205,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
           </div>
         </div>
 
-        {/* Danh sách tin nhắn */}
+        {/* Messages List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 scroll-smooth">
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full animate-in fade-in slide-in-from-bottom-2 duration-300`}>
               
-              {/* Avatar Bot */}
               {msg.role !== 'user' && (
                 <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center mr-2 flex-shrink-0 self-start mt-1">
                   <Bot size={16} className="text-blue-600" />
@@ -226,24 +222,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
                   : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
               }`}>
                 
-                {/* --- LOGIC HIỂN THỊ TIN NHẮN --- */}
                 {msg.isThinking ? (
-                  // ĐANG SUY NGHĨ HOẶC ĐỢI SERVER
                   msg.text === "SLEEPING_MODE" ? (
-                    // 1. Trường hợp Server ngủ đông (Đã quá 4s)
+                    // 1. Chỉ hiện khi đợi quá 12s
                     <div className="flex items-start gap-2 text-slate-500 italic">
                       <Loader2 size={16} className="animate-spin mt-1 text-orange-500 flex-shrink-0" />
-                      <span>😴 Server miễn phí đang 'ngủ đông'. Đang đánh thức (mất khoảng 30-50s), bạn vui lòng thông cảm đợi mình chút nha! 🐢☕</span>
+                      <span>😴 Server đang 'ngủ đông'. Đang đánh thức (khoảng 30-50s), bạn đợi chút nha! 🐢</span>
                     </div>
                   ) : (
-                    // 2. Trường hợp Đang suy nghĩ "Ngầu" (Dưới 4s)
+                    // 2. Bình thường hiện cái này
                     <div className="flex items-center gap-2 text-blue-600 font-medium animate-pulse">
                       <Loader2 size={14} className="animate-spin" />
                       <span>{thinkingText}</span>
                     </div>
                   )
                 ) : (
-                  // ĐÃ CÓ KẾT QUẢ -> Hiện Markdown đẹp
                   <div className={`prose prose-sm max-w-none ${msg.role === 'user' ? 'text-white prose-headings:text-white prose-strong:text-white' : 'text-slate-700'}`}>
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
@@ -264,14 +257,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
                   </div>
                 )}
 
-                {/* Nút Copy */}
                 {msg.role === 'model' && msg.id !== 'init' && !msg.isThinking && (
                   <button onClick={() => handleCopy(msg.text, msg.id || '')} className="absolute -top-2 -right-2 p-1.5 bg-white border rounded-full shadow-sm hover:bg-slate-100 transition-colors z-10">
                     {copiedMessageId === msg.id ? <Check size={12} className="text-green-600" /> : <Copy size={12} className="text-slate-400" />}
                   </button>
                 )}
 
-                {/* Các nút gợi ý */}
                 {msg.options && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {msg.options.map((opt, i) => (
@@ -291,7 +282,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
         <div className="p-3 bg-white border-t border-slate-100">
           <div className="flex items-center gap-2 bg-slate-100 p-2 rounded-xl border border-transparent focus-within:border-blue-400 focus-within:bg-white focus-within:shadow-sm transition-all">
             <input
@@ -299,7 +289,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Nhập câu hỏi (VD: Vượt đèn đỏ phạt bao nhiêu?)..."
+              placeholder="Nhập câu hỏi..."
               className="flex-1 bg-transparent border-none outline-none text-sm text-slate-800 placeholder:text-slate-400"
               disabled={isLoading}
             />
