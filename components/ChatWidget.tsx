@@ -9,11 +9,21 @@ interface ChatWidgetProps {
   t: Translation['chat'] & { thinking_steps?: { searching: string; analyzing: string; generating: string } };
 }
 
+// --- DANH SÁCH CÁC CÂU "GIẢ VỜ" SUY NGHĨ CHO NGẦU ---
+const THINKING_STEPS = [
+  "🔍 Đang tra cứu cơ sở dữ liệu luật...",
+  "📡 Đang kết nối đến hệ thống giao thông...",
+  "⚖️ Đang phân tích hành vi vi phạm...",
+  "🧠 Đang tổng hợp mức phạt mới nhất...",
+  "✍️ Đang soạn thảo câu trả lời..."
+];
+
 const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [thinkingText, setThinkingText] = useState(THINKING_STEPS[0]); // State cho chữ chạy chạy
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isEnlarged, setIsEnlarged] = useState(false);
   
@@ -24,7 +34,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
   useEffect(() => {
     const wakeUpServer = async () => {
       try {
-        // Gửi request nhẹ để server tỉnh giấc
         await fetch('https://python-deloy.onrender.com', { method: 'GET', mode: 'no-cors' });
         console.log("🔔 Đã gửi tín hiệu đánh thức Server");
       } catch (e) { 
@@ -34,7 +43,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     wakeUpServer();
   }, []);
 
-  // --- 2. TIN NHẮN CHÀO MỪNG ---
+  // --- 2. HIỆU ỨNG CHỮ CHẠY CHẠY KHI LOADING ---
+  useEffect(() => {
+    if (!isLoading) return;
+
+    let stepIndex = 0;
+    // Cứ 1.5 giây đổi câu một lần cho nó nguy hiểm
+    const interval = setInterval(() => {
+      stepIndex = (stepIndex + 1) % THINKING_STEPS.length;
+      setThinkingText(THINKING_STEPS[stepIndex]);
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  // --- 3. TIN NHẮN CHÀO MỪNG ---
   useEffect(() => {
     setMessages([{
       id: 'init',
@@ -46,10 +69,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     }]);
   }, []); 
 
-  // --- 3. AUTO SCROLL ---
+  // --- 4. AUTO SCROLL ---
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, thinkingText]); // Scroll khi chữ thay đổi
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -58,7 +81,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     });
   };
 
-  // --- 4. HÀM GỬI TIN NHẮN (CORE LOGIC) ---
+  // --- 5. HÀM GỬI TIN NHẮN (CORE LOGIC) ---
   const handleSend = async (textOverride?: string) => {
     const textToSend = textOverride || input;
     if (!textToSend?.trim()) return;
@@ -79,7 +102,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     const botMsgId = (Date.now() + 1).toString();
     setMessages(prev => [...prev, { 
       id: botMsgId, 
-      text: '...', 
+      text: 'Thinking...', // Text tạm, sẽ được thay thế bằng UI hiển thị bên dưới
       sender: 'bot', 
       role: 'model', 
       isThinking: true,
@@ -87,6 +110,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     }]);
     
     setIsLoading(true);
+    setThinkingText(THINKING_STEPS[0]); // Reset về câu đầu tiên
 
     // --- C. HẸN GIỜ CẢNH BÁO SERVER NGỦ ---
     // Nếu sau 4s chưa thấy phản hồi -> Đổi text thành thông báo chờ
@@ -95,7 +119,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
         msg.id === botMsgId 
           ? { 
               ...msg, 
-              text: "😴 Server miễn phí đang 'ngủ đông'. Đang đánh thức (mất khoảng 30-50s), bạn vui lòng thông cảm đợi mình chút nha! 🐢☕", 
+              // Dấu hiệu đặc biệt để nhận biết là đang đợi server ngủ
+              text: "SLEEPING_MODE", 
               isThinking: true 
             } 
           : msg
@@ -201,18 +226,28 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
                   : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
               }`}>
                 
-                {/* --- HIỂN THỊ MARKDOWN (ĐẸP) --- */}
+                {/* --- LOGIC HIỂN THỊ TIN NHẮN --- */}
                 {msg.isThinking ? (
-                  <div className="flex items-center gap-2 text-slate-500 italic animate-pulse">
-                    {msg.text === '...' ? <Loader2 size={14} className="animate-spin" /> : null}
-                    <span>{msg.text}</span>
-                  </div>
+                  // ĐANG SUY NGHĨ HOẶC ĐỢI SERVER
+                  msg.text === "SLEEPING_MODE" ? (
+                    // 1. Trường hợp Server ngủ đông (Đã quá 4s)
+                    <div className="flex items-start gap-2 text-slate-500 italic">
+                      <Loader2 size={16} className="animate-spin mt-1 text-orange-500 flex-shrink-0" />
+                      <span>😴 Server miễn phí đang 'ngủ đông'. Đang đánh thức (mất khoảng 30-50s), bạn vui lòng thông cảm đợi mình chút nha! 🐢☕</span>
+                    </div>
+                  ) : (
+                    // 2. Trường hợp Đang suy nghĩ "Ngầu" (Dưới 4s)
+                    <div className="flex items-center gap-2 text-blue-600 font-medium animate-pulse">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>{thinkingText}</span>
+                    </div>
+                  )
                 ) : (
+                  // ĐÃ CÓ KẾT QUẢ -> Hiện Markdown đẹp
                   <div className={`prose prose-sm max-w-none ${msg.role === 'user' ? 'text-white prose-headings:text-white prose-strong:text-white' : 'text-slate-700'}`}>
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        // Tùy chỉnh CSS cho các thẻ HTML
                         strong: ({node, ...props}) => <span className="font-bold text-blue-700 dark:text-blue-300" {...props} />,
                         ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-2" {...props} />,
                         ol: ({node, ...props}) => <ol className="list-decimal pl-4 space-y-1 my-2" {...props} />,
