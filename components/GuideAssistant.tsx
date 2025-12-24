@@ -26,6 +26,16 @@ const LOCAL_BANTER_LIST = [
   "Gặp đèn đỏ được rẽ phải không? Nhớ nhìn biển báo nha!",
 ];
 
+// --- CẤU HÌNH ẢNH ĐỘNG (GIF) ---
+// Bạn hãy tìm link ảnh GIF trên Pinterest/Google và dán vào đây nhé!
+const ANIMATED_AVATARS = {
+  // Ảnh khi vui vẻ/bình thường (Ví dụ: Cặp đôi đang cười hoặc nhảy múa)
+  happy: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDdtY256eG56eG56eG56eG56eG56eG56eG56eG56eG56/l4FGpP4lx81th84lG/giphy.gif", 
+  
+  // Ảnh khi nghiêm túc/cảnh báo (Ví dụ: Cặp đôi đang hoảng hốt hoặc giơ biển Stop)
+  serious: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Z6eG56eG56eG56eG56eG56eG56eG56eG56eG56eG56/3o7TKr3nzbh5QNWB8c/giphy.gif"
+};
+
 const GuideAssistant = () => {
   const [isVisible, setIsVisible] = useState(true);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
@@ -40,7 +50,7 @@ const GuideAssistant = () => {
   // Tự động phát hiện phần đang xem (Scroll Detection)
   useEffect(() => {
     const handleScroll = () => {
-      setIsBantering(false); // Khi cuộn, ưu tiên hiển thị tip hướng dẫn
+      setIsBantering(false); 
       setMood('happy');
       const scrollPosition = window.scrollY + window.innerHeight / 3;
       
@@ -61,19 +71,18 @@ const GuideAssistant = () => {
   useEffect(() => {
     if (!isVisible) return;
     const moveInterval = setInterval(() => {
-      const newTop = `${Math.random() * 60 + 20}%`; // 20% -> 80% chiều cao
-      const newLeft = `${Math.random() * 70 + 5}%`; // 5% -> 75% chiều rộng
+      const newTop = `${Math.random() * 60 + 20}%`;
+      const newLeft = `${Math.random() * 70 + 5}%`;
       setPosition({ top: newTop, left: newLeft });
-    }, 10000); // Di chuyển mỗi 10 giây
+    }, 10000); 
 
     return () => clearInterval(moveInterval);
   }, [isVisible]);
 
-  // --- Logic nói chuyện vui nhộn (Local Random - Đã bỏ API) ---
+  // --- Logic nói chuyện vui nhộn ---
   useEffect(() => {
     if (!isVisible) return;
 
-    // Hàm phân tích cảm xúc dựa trên từ khóa có sẵn trong câu nói
     const analyzeMood = (text: string) => {
       const seriousKeywords = ['tai nạn', 'chết', 'phạt', 'nguy hiểm', 'cấm', 'rượu', 'bia', 'bệnh viện', 'cảnh báo', 'thương vong'];
       const isSerious = seriousKeywords.some(k => text.toLowerCase().includes(k));
@@ -81,17 +90,14 @@ const GuideAssistant = () => {
     };
 
     const triggerLocalBanter = () => {
-      // Lấy ngẫu nhiên từ danh sách có sẵn
       const randomText = LOCAL_BANTER_LIST[Math.floor(Math.random() * LOCAL_BANTER_LIST.length)];
-      
       setBanter(randomText);
       setIsBantering(true);
       analyzeMood(randomText);
     };
 
-    // Thiết lập thời gian nói chuyện
-    const banterInterval = setInterval(triggerLocalBanter, 35000); // Mỗi 35 giây nói 1 câu mới
-    const initialTimeout = setTimeout(triggerLocalBanter, 10000); // Nói câu đầu tiên sau 10 giây
+    const banterInterval = setInterval(triggerLocalBanter, 35000);
+    const initialTimeout = setTimeout(triggerLocalBanter, 10000);
 
     return () => {
       clearInterval(banterInterval);
@@ -99,10 +105,9 @@ const GuideAssistant = () => {
     };
   }, [isVisible]);
 
-  // --- Text-to-Speech (Giọng nói) ---
+  // --- Text-to-Speech ---
   useEffect(() => {
     if (!isVisible || !isSoundEnabled) return;
-
     const textToSpeak = isBantering ? banter : TIPS[currentTipIndex].text;
     if (!textToSpeak) return;
 
@@ -116,15 +121,11 @@ const GuideAssistant = () => {
     const nextIndex = (currentTipIndex + 1) % TIPS.length;
     const targetId = TIPS[nextIndex].target;
     const element = document.getElementById(targetId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (element) element.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // URL Avatar thay đổi theo cảm xúc
-  const avatarUrl = mood === 'happy' 
-    ? "https://api.dicebear.com/7.x/bottts/svg?seed=Felix&mouth=smile01,smile02&eyes=eva"
-    : "https://api.dicebear.com/7.x/bottts/svg?seed=Felix&mouth=grimace,square01&eyes=frame1,frame2";
+  // --- LOGIC CHỌN AVATAR ĐỘNG ---
+  const avatarUrl = mood === 'happy' ? ANIMATED_AVATARS.happy : ANIMATED_AVATARS.serious;
 
   if (!isVisible) return (
     <button 
@@ -143,7 +144,8 @@ const GuideAssistant = () => {
     >
       {/* Avatar Nhân vật */}
       <div className="relative group cursor-pointer pointer-events-auto" onClick={scrollToNext}>
-        <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-yellow-100 border-2 border-yellow-400 p-1 shadow-xl overflow-hidden hover:scale-105 transition-transform">
+        <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white border-2 border-yellow-400 shadow-xl overflow-hidden hover:scale-105 transition-transform">
+           {/* Dùng object-cover để ảnh GIF lấp đầy khung tròn */}
            <img 
              src={avatarUrl} 
              alt="Trợ lý hướng dẫn" 
