@@ -19,17 +19,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
   const lessonOptions = CHAT_LESSONS.map(l => l.title);
 
   // --- LOGIC: KEEP-ALIVE RENDER SERVER ---
-  // Tự động gửi tín hiệu đánh thức server ngay khi người dùng vào web
   useEffect(() => {
     const wakeUpServer = async () => {
       try {
         await fetch('https://python-deloy.onrender.com', { method: 'GET', mode: 'no-cors' });
-        console.log("Đã gửi tín hiệu đánh thức Server Render");
       } catch (e) { /* Bỏ qua lỗi kết nối ngầm */ }
     };
     wakeUpServer();
   }, []);
-  // ---------------------------------------
 
   useEffect(() => {
     setMessages([{
@@ -39,7 +36,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
       timestamp: new Date(),
       options: lessonOptions
     }]);
-  }, [lessonOptions]);
+  }, []); // Bỏ dependency lessonOptions để tránh render lại vô tận
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -52,67 +49,64 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
     });
   };
 
+  // --- HÀM GỬI TIN NHẮN (ĐÃ SỬA LỖI) ---
+  // Thêm tham số textOverride để nhận nội dung từ nút bấm gợi ý
   const handleSend = async (textOverride?: string) => {
+    // Ưu tiên lấy text từ nút bấm, nếu không có thì lấy từ ô nhập liệu
     const textToSend = textOverride || input;
-    if (!textToSend.trim() || isLoading) return;
+
+    // Nếu không có nội dung gì thì chặn luôn
+    if (!textToSend?.trim()) return;
+
+    // Xóa ô nhập liệu
+    setInput('');
 
     // 1. Hiển thị tin nhắn người dùng
-    const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      text: textToSend,
-      timestamp: new Date()
-    };
+    const userMsgId = Date.now().toString();
+    setMessages(prev => [...prev, { id: userMsgId, text: textToSend, sender: 'user', role: 'user' }]);
 
-    // 2. Tạo tin nhắn chờ của Bot
-    const botMsgId = `bot-${Date.now()}`;
-    const newBotMsg: ChatMessage = {
-      id: botMsgId,
-      role: 'model',
-      text: 'Đang tra cứu dữ liệu pháp luật...', 
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMsg, newBotMsg]);
-    setInput('');
+    // 2. Hiển thị tin nhắn chờ (Loading...)
+    const botMsgId = (Date.now() + 1).toString();
+    setMessages(prev => [...prev, { id: botMsgId, text: '...', sender: 'bot', role: 'model', isThinking: true }]);
     setIsLoading(true);
 
     try {
-      // 3. Gọi API Backend trên Render
+      console.log("🚀 Đang gửi:", textToSend);
+      
       const response = await fetch('https://python-deloy.onrender.com/api/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: textToSend })
       });
 
-      if (!response.ok) throw new Error(`Lỗi máy chủ: ${response.status}`);
+      console.log("📡 Trạng thái Server:", response.status);
 
-      // 4. Nhận kết quả JSON (Quan trọng: Không dùng stream)
-      const result = await response.json(); 
+      if (!response.ok) {
+        throw new Error(`Server báo lỗi: ${response.status}`);
+      }
 
-      // 5. Xử lý dữ liệu an toàn (Fallback logic)
-      // Ưu tiên lấy 'answer', nếu không có thì lấy 'text', 'content' hoặc thông báo lỗi
-      const botResponse = result.answer || result.text || result.content || "Xin lỗi, tôi không tìm thấy thông tin phù hợp trong cơ sở dữ liệu luật.";
+      const data = await response.json();
+      console.log("📦 Gói hàng Server trả về:", data); 
 
-      // 6. Cập nhật tin nhắn Bot
+      // Lấy câu trả lời (Ưu tiên answer, fallback sang các trường khác)
+      const botResponse = data.answer || data.text || "Hệ thống không trả về nội dung.";
+
+      // Cập nhật tin nhắn Bot (Thay thế dấu ba chấm ...)
       setMessages(prev => prev.map(msg => 
-        msg.id === botMsgId ? { ...msg, text: botResponse } : msg
+        msg.id === botMsgId 
+          ? { ...msg, text: botResponse, isThinking: false } 
+          : msg
       ));
 
-    } catch (error: any) {
-      console.error("Lỗi kết nối:", error);
+    } catch (error) {
+      console.error("❌ Lỗi toang:", error);
       setMessages(prev => prev.map(msg => 
-        msg.id === botMsgId ? { ...msg, text: "⚠️ Máy chủ đang khởi động lại. Vui lòng thử lại sau 30 giây." } : msg
+        msg.id === botMsgId 
+          ? { ...msg, text: "Lỗi kết nối server. Vui lòng kiểm tra lại mạng hoặc thử lại sau.", isThinking: false } 
+          : msg
       ));
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
     }
   };
 
@@ -152,7 +146,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
                 <div className="whitespace-pre-wrap">{msg.text}</div>
 
                 {/* Nút copy cho Bot */}
-                {msg.role === 'model' && msg.id !== 'init' && (
+                {msg.role === 'model' && msg.id !== 'init' && !msg.isThinking && (
                   <button onClick={() => handleCopy(msg.text, msg.id)} className="absolute -top-2 -right-2 p-1.5 bg-white border rounded-full shadow-sm hover:bg-slate-100 transition-colors">
                     {copiedMessageId === msg.id ? <Check size={12} className="text-green-600" /> : <Copy size={12} className="text-slate-400" />}
                   </button>
@@ -162,7 +156,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
                 {msg.options && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {msg.options.map((opt, i) => (
-                      <button key={i} onClick={() => handleSend(opt)} className="bg-blue-50 text-blue-700 text-xs font-medium px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-100 transition-colors">
+                      <button key={i} onClick={() => handleSend(opt)} className="bg-blue-50 text-blue-700 text-xs font-medium px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-100 transition-colors text-left">
                         {opt}
                       </button>
                     ))}
@@ -177,7 +171,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
             <div className="flex justify-start w-full">
               <div className="bg-white border border-slate-200 p-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-2 text-sm text-slate-500">
                 <Loader2 size={16} className="animate-spin text-blue-600" />
-                <span>AI đang phân tích luật...</span>
+                <span>AI đang tra cứu luật...</span>
               </div>
             </div>
           )}
@@ -191,7 +185,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ t }) => {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyPress}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Nhập câu hỏi (VD: Lỗi vượt đèn đỏ phạt bao nhiêu?)..."
               className="flex-1 bg-transparent border-none outline-none text-sm text-slate-800 placeholder:text-slate-400"
               disabled={isLoading}
