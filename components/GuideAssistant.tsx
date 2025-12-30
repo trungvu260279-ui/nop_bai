@@ -29,9 +29,9 @@ const LOCAL_BANTER_LIST = [
 
 // --- CẤU HÌNH ẢNH ---
 const ANIMATED_AVATARS = {
-  // Thêm /xe_dap vào trước tên file
-  happy: "/xe_dap/capoo_1.gif",       
-  serious: "/xe_dap/bugcat-capoo.gif" 
+  // Bạn nhớ đảm bảo đường dẫn ảnh đúng với dự án của bạn
+  happy: "/capoo_1.gif",       
+  serious: "/bugcat-capoo.gif" 
 };
 
 const GuideAssistant = () => {
