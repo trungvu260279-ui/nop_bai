@@ -11,6 +11,7 @@
   "dependencies": {
     "@google/genai": "^1.31.0",
     "@google/generative-ai": "^0.24.1",
+    "@lottiefiles/dotlottie-react": "^0.17.12",
     "docx-preview": "^0.3.7",
     "lucide-react": "^0.556.0",
     "react": "^19.2.1",
